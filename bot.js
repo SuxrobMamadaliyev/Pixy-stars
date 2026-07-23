@@ -1,4 +1,5 @@
 require('dotenv').config();
+const express = require('express');
 const { Telegraf, Markup, session } = require('telegraf');
 const pixy = require('./pixyApi');
 const db = require('./db');
@@ -10,6 +11,10 @@ const ADMIN_IDS = (process.env.ADMIN_IDS || '')
   .filter(Boolean);
 const PRICE_PER_STAR = Number(process.env.PRICE_PER_STAR || 150);
 const MIN_STARS = Number(process.env.MIN_STARS || 50);
+
+// Render doim tashqi RENDER_EXTERNAL_URL beradi (masalan: https://sizning-app.onrender.com)
+const RENDER_URL = process.env.RENDER_EXTERNAL_URL || process.env.WEBHOOK_DOMAIN;
+const PORT = process.env.PORT || 3000;
 
 if (!BOT_TOKEN) {
   console.error("❌ BOT_TOKEN .env faylida topilmadi!");
@@ -195,7 +200,45 @@ bot.catch((err, ctx) => {
   ctx.reply('⚠️ Kutilmagan xatolik yuz berdi.').catch(() => {});
 });
 
-bot.launch().then(() => console.log('🚀 Bot ishga tushdi'));
+// ---------------- ISHGA TUSHIRISH (Render uchun webhook, lokal uchun polling) ----------------
 
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
+const app = express();
+app.use(express.json());
+
+// Render "health check" uchun oddiy GET endpoint kutadi
+app.get('/', (req, res) => res.send('✅ Stars bot ishlayapti'));
+
+// MUHIM: Render portni darhol ochilishini kutadi — shuning uchun listen()ni
+// webhook/Telegram bilan bog'liq har qanday ishdan OLDIN chaqiramiz.
+const server = app.listen(PORT, () => {
+  console.log(`🌐 Server ${PORT} portda tinglayapti`);
+  setupBot().catch((err) => {
+    console.error('❌ Botni sozlashda xatolik:', err);
+  });
+});
+
+async function setupBot() {
+  console.log('RENDER_EXTERNAL_URL:', RENDER_URL || '(topilmadi)');
+
+  if (RENDER_URL) {
+    const webhookPath = `/webhook/${BOT_TOKEN}`;
+    const fullWebhookUrl = `${RENDER_URL}${webhookPath}`;
+
+    app.use(bot.webhookCallback(webhookPath));
+
+    await bot.telegram.setWebhook(fullWebhookUrl);
+    console.log(`🚀 Bot webhook rejimida ishga tushdi: ${fullWebhookUrl}`);
+  } else {
+    await bot.launch();
+    console.log('🚀 Bot polling rejimida ishga tushdi (lokal)');
+  }
+}
+
+process.once('SIGINT', () => {
+  bot.stop('SIGINT');
+  server.close();
+});
+process.once('SIGTERM', () => {
+  bot.stop('SIGTERM');
+  server.close();
+});
