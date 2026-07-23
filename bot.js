@@ -22,6 +22,10 @@ if (!BOT_TOKEN) {
 }
 
 const bot = new Telegraf(BOT_TOKEN);
+bot.use((ctx, next) => {
+  console.log(`🤖 Update: ${ctx.updateType} from ${ctx.from?.id}`);
+  return next();
+});
 bot.use(session({ defaultSession: () => ({}) }));
 
 function isAdmin(ctx) {
@@ -205,8 +209,24 @@ bot.catch((err, ctx) => {
 const app = express();
 app.use(express.json());
 
+// Har bir kelgan so'rovni log qilib turamiz — diagnostika uchun
+app.use((req, res, next) => {
+  console.log(`📥 ${req.method} ${req.path}`);
+  next();
+});
+
 // Render "health check" uchun oddiy GET endpoint kutadi
 app.get('/', (req, res) => res.send('✅ Stars bot ishlayapti'));
+
+// Diagnostika: joriy webhook holatini ko'rish uchun (brauzerda oching)
+app.get('/webhook-info', async (req, res) => {
+  try {
+    const info = await bot.telegram.getWebhookInfo();
+    res.json(info);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // MUHIM: Render portni darhol ochilishini kutadi — shuning uchun listen()ni
 // webhook/Telegram bilan bog'liq har qanday ishdan OLDIN chaqiramiz.
@@ -226,8 +246,15 @@ async function setupBot() {
 
     app.use(bot.webhookCallback(webhookPath));
 
-    await bot.telegram.setWebhook(fullWebhookUrl);
-    console.log(`🚀 Bot webhook rejimida ishga tushdi: ${fullWebhookUrl}`);
+    try {
+      const result = await bot.telegram.setWebhook(fullWebhookUrl);
+      console.log('setWebhook natijasi:', result);
+      const info = await bot.telegram.getWebhookInfo();
+      console.log('Webhook holati:', JSON.stringify(info));
+      console.log(`🚀 Bot webhook rejimida ishga tushdi: ${fullWebhookUrl}`);
+    } catch (err) {
+      console.error('❌ setWebhook xatosi:', err.message);
+    }
   } else {
     await bot.launch();
     console.log('🚀 Bot polling rejimida ishga tushdi (lokal)');
