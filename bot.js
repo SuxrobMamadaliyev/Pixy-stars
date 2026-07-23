@@ -12,6 +12,10 @@ const ADMIN_IDS = (process.env.ADMIN_IDS || '')
 const PRICE_PER_STAR = Number(process.env.PRICE_PER_STAR || 150);
 const MIN_STARS = Number(process.env.MIN_STARS || 50);
 
+// Custom emoji (faqat Telegram Premium akkountlar ko'radi, HTML parse_mode bilan xabar matnida ishlaydi)
+const STAR_EMOJI_ID = '5397916757333654639';
+const STAR_EMOJI_HTML = `<tg-emoji emoji-id="${STAR_EMOJI_ID}">⭐</tg-emoji>`;
+
 // Render doim tashqi RENDER_EXTERNAL_URL beradi (masalan: https://sizning-app.onrender.com)
 const RENDER_URL = process.env.RENDER_EXTERNAL_URL || process.env.WEBHOOK_DOMAIN;
 const PORT = process.env.PORT || 3000;
@@ -49,11 +53,11 @@ bot.start((ctx) => {
   ctx.session = {};
   ctx.reply(
     `👋 Assalomu alaykum, ${ctx.from.first_name}!\n\n` +
-      `⭐ Bu bot orqali Telegram Stars sotib olishingiz mumkin.\n` +
+      `${STAR_EMOJI_HTML} Bu bot orqali Telegram Stars sotib olishingiz mumkin.\n` +
       `💵 Narx: 1 stars = ${PRICE_PER_STAR} so'm\n` +
       `📦 Minimum: ${MIN_STARS} stars\n\n` +
       `Boshlash uchun pastdagi tugmani bosing 👇`,
-    mainMenu()
+    { parse_mode: 'HTML', ...mainMenu() }
   );
 });
 
@@ -111,13 +115,16 @@ bot.on('text', async (ctx, next) => {
     return ctx.reply(
       `🧾 Buyurtma tafsilotlari:\n\n` +
         `👤 Username: @${ctx.session.username}\n` +
-        `⭐ Stars: ${amount}\n` +
+        `${STAR_EMOJI_HTML} Stars: ${amount}\n` +
         `💵 Narx: ${priceUZS.toLocaleString('ru-RU')} so'm\n\n` +
         `Tasdiqlaysizmi?`,
-      Markup.inlineKeyboard([
-        [Markup.button.callback('✅ Tasdiqlash', 'confirm_order')],
-        [Markup.button.callback('❌ Bekor qilish', 'cancel_order')],
-      ])
+      {
+        parse_mode: 'HTML',
+        ...Markup.inlineKeyboard([
+          [Markup.button.callback('✅ Tasdiqlash', 'confirm_order')],
+          [Markup.button.callback('❌ Bekor qilish', 'cancel_order')],
+        ]),
+      }
     );
   }
 
@@ -156,8 +163,8 @@ bot.action('confirm_order', async (ctx) => {
 
   if (result.ok) {
     await ctx.reply(
-      `✅ Muvaffaqiyatli!\n\n⭐ ${amount} stars @${username} ga yuborildi.\n🆔 Buyurtma: ${orderId}`,
-      mainMenu()
+      `✅ Muvaffaqiyatli!\n\n${STAR_EMOJI_HTML} ${amount} stars @${username} ga yuborildi.\n🆔 Buyurtma: ${orderId}`,
+      { parse_mode: 'HTML', ...mainMenu() }
     );
   } else {
     await ctx.reply(pixy.formatPixyError(result), mainMenu());
@@ -193,9 +200,9 @@ bot.action('admin_stats', async (ctx) => {
     `📊 Statistika:\n\n` +
       `📦 Jami buyurtmalar: ${stats.totalOrders}\n` +
       `✅ Muvaffaqiyatli: ${stats.successOrders}\n` +
-      `⭐ Sotilgan stars: ${stats.totalStars}\n` +
+      `${STAR_EMOJI_HTML} Sotilgan stars: ${stats.totalStars}\n` +
       `💵 Jami tushum: ${stats.totalRevenue.toLocaleString('ru-RU')} so'm`,
-    adminMenu()
+    { parse_mode: 'HTML', ...adminMenu() }
   );
 });
 
